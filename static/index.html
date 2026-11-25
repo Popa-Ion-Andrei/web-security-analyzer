@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web &amp; URL Security Analyzer (SIEM-Ready Edition)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #020617; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-sky-500/30 selection:text-sky-200">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-5 border-b border-slate-800/80">
+      <div class="flex items-center gap-3.5">
+        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-sky-500/20 to-indigo-500/20 border border-sky-500/30 flex items-center justify-center text-sky-400 shadow-lg shadow-sky-950/30">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-50">
+              Web &amp; URL Security Analyzer
+            </h1>
+            <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/30">
+              v1.0.0
+            </span>
+          </div>
+          <p class="text-sm text-slate-400">
+            SIEM-Ready Edition &mdash; HTTP/TLS Audit, Phishing Heuristics &amp; Threat Intelligence
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 flex-wrap">
+        <a
+          href="/api/export/siem"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 transition"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+          </svg>
+          Export SIEM Logs
+        </a>
+        <a
+          href="/docs"
+          target="_blank"
+          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-slate-900 text-slate-300 border border-slate-700 hover:bg-slate-800 hover:text-white transition"
+        >
+          Swagger API Docs
+          <span class="text-xs">&#8599;</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- KPI Row -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Total Scans</p>
+        <p id="kpi-total" class="text-2xl font-bold text-slate-100 mt-1">0</p>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">High / Critical Alerts</p>
+        <p id="kpi-high" class="text-2xl font-bold text-rose-400 mt-1">0</p>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Clean URLs (Low)</p>
+        <p id="kpi-clean" class="text-2xl font-bold text-emerald-400 mt-1">0</p>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Avg Risk Score</p>
+        <p id="kpi-avg" class="text-2xl font-bold text-amber-400 mt-1">0.0</p>
+      </div>
+    </section>
+
+    <!-- Scanner Panel -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl shadow-black/25">
+      <!-- Tabs -->
+      <div class="flex items-center gap-2 border-b border-slate-800 pb-4 mb-5">
+        <button
+          id="tab-single"
+          type="button"
+          class="px-4 py-2 rounded-lg text-sm font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/40 transition"
+        >
+          Single URL Scan
+        </button>
+        <button
+          id="tab-batch"
+          type="button"
+          class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-950/60 text-slate-400 border border-slate-800 hover:text-slate-200 transition"
+        >
+          Batch Scan (up to 10)
+        </button>
+      </div>
+
+      <!-- Single URL Scan Panel -->
+      <div id="panel-single">
+        <form id="single-scan-form" class="flex flex-col sm:flex-row gap-3">
+          <input
+            id="single-url-input"
+            type="text"
+            placeholder="https://example.com"
+            value="https://example.com"
+            required
+            class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+          />
+          <button
+            id="single-scan-btn"
+            type="submit"
+            class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-lg shadow-sky-900/30 disabled:opacity-60 transition cursor-pointer"
+          >
+            <svg id="single-spinner" class="hidden w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            <span id="single-btn-text">Analyze URL</span>
+          </button>
+        </form>
+
+        <!-- 3 Quick Demo Preset Buttons -->
+        <div class="flex flex-wrap items-center gap-2 mt-4">
+          <span class="text-xs font-medium text-slate-400 mr-1">Quick Demo:</span>
+          <button
+            type="button"
+            class="demo-btn px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 transition cursor-pointer"
+            data-url="https://example.com"
+          >
+            Demo: Safe URL
+          </button>
+          <button
+            type="button"
+            class="demo-btn px-3 py-1.5 rounded-full text-xs font-medium bg-orange-500/10 text-orange-300 border border-orange-500/30 hover:bg-orange-500/20 transition cursor-pointer"
+            data-url="http://192.168.1.50/secure-login-verify-account-update"
+          >
+            Demo: Phishing Pattern
+          </button>
+          <button
+            type="button"
+            class="demo-btn px-3 py-1.5 rounded-full text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 hover:bg-rose-500/20 transition cursor-pointer"
+            data-url="http://bad-phishing-login-verify.com/login"
+          >
+            Demo: Threat Intel Hit
+          </button>
+        </div>
+      </div>
+
+      <!-- Batch Scan Panel -->
+      <div id="panel-batch" class="hidden space-y-3">
+        <form id="batch-scan-form" class="space-y-3">
+          <textarea
+            id="batch-urls-input"
+            rows="4"
+            placeholder="Enter up to 10 URLs (one per line):&#10;https://example.com&#10;http://192.168.1.50/secure-login-verify-account-update&#10;http://bad-phishing-login-verify.com/login"
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+          ></textarea>
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <span class="text-xs text-slate-400">Maximum 10 URLs per batch request.</span>
+            <button
+              id="batch-scan-btn"
+              type="submit"
+              class="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-60 transition cursor-pointer"
+            >
+              <svg id="batch-spinner" class="hidden w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              <span id="batch-btn-text">Scan Batch</span>
+            </button>
+          </div>
+        </form>
+        <div id="batch-results-box" class="hidden pt-2 space-y-2"></div>
+      </div>
+
+      <!-- Error Alert -->
+      <div id="scan-error" class="hidden mt-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm"></div>
+    </section>
+
+    <!-- Detailed Scan Result View -->
+    <section id="result-view" class="hidden space-y-5">
+      <!-- Top Verdict Banner -->
+      <div id="verdict-banner" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+        <div class="space-y-1.5 flex-1">
+          <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <span>Detailed Security Assessment</span>
+            <span>&bull;</span>
+            <span id="res-timestamp">-</span>
+          </div>
+          <h2 id="res-url" class="text-lg sm:text-xl font-bold text-white break-all">-</h2>
+          <p id="res-summary" class="text-sm text-slate-300">-</p>
+        </div>
+
+        <div class="flex items-center gap-5 shrink-0">
+          <div class="w-44">
+            <div class="flex justify-between text-xs font-medium mb-1.5">
+              <span class="text-slate-400">Risk Score</span>
+              <span id="res-score-text" class="text-slate-100 font-bold">0 / 100</span>
+            </div>
+            <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+              <div id="res-score-bar" class="h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+          </div>
+          <div id="res-severity-pill" class="px-4 py-2 rounded-xl text-sm font-extrabold tracking-wide border">
+            LOW
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 Clean Cards Side-by-Side -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <!-- Card 1: HTTP Headers & TLS Audit -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h3 class="font-semibold text-slate-100">HTTP Headers &amp; TLS Audit</h3>
+            <span id="card-https-badge" class="px-2.5 py-0.5 text-xs font-semibold rounded-full">-</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2.5 text-xs">
+            <div class="bg-slate-950/70 border border-slate-800 rounded-lg p-2.5">
+              <span class="text-slate-400 block">HTTP Status</span>
+              <span id="card-http-status" class="font-semibold text-slate-100 mt-0.5 block">-</span>
+            </div>
+            <div class="bg-slate-950/70 border border-slate-800 rounded-lg p-2.5">
+              <span class="text-slate-400 block">Response Time</span>
+              <span id="card-latency" class="font-semibold text-slate-100 mt-0.5 block">-</span>
+            </div>
+          </div>
+          <div id="card-ssl-box" class="bg-slate-950/70 border border-slate-800 rounded-xl p-3 text-xs space-y-1"></div>
+          <div id="card-server-warning" class="hidden bg-amber-500/10 border border-amber-500/30 text-amber-200 rounded-xl p-2.5 text-xs"></div>
+          <div id="card-http-error" class="hidden bg-rose-500/10 border border-rose-500/30 text-rose-200 rounded-xl p-2.5 text-xs"></div>
+          <div id="card-headers-list" class="space-y-2 text-xs"></div>
+          <div class="pt-2 border-t border-slate-800">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Remediation Tips</p>
+            <ul id="card-remediations" class="space-y-1.5 text-xs text-slate-300 list-disc list-inside"></ul>
+          </div>
+        </div>
+
+        <!-- Card 2: Phishing Heuristics -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h3 class="font-semibold text-slate-100">Phishing Heuristics</h3>
+            <span id="card-phish-badge" class="px-2.5 py-0.5 text-xs font-semibold rounded-full">-</span>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5">
+            <div class="flex justify-between text-xs mb-2">
+              <span class="text-slate-400">Phishing Probability</span>
+              <span id="card-phish-pct" class="font-bold text-slate-100">0%</span>
+            </div>
+            <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+              <div id="card-phish-bar" class="h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Triggered Rules</p>
+            <div id="card-phish-rules" class="space-y-2 text-xs"></div>
+          </div>
+        </div>
+
+        <!-- Card 3: Threat Intelligence -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h3 class="font-semibold text-slate-100">Threat Intelligence</h3>
+            <span id="card-intel-badge" class="px-2.5 py-0.5 text-xs font-semibold rounded-full">-</span>
+          </div>
+          <div class="space-y-2.5 text-xs">
+            <div class="flex justify-between bg-slate-950/70 border border-slate-800 rounded-lg p-3">
+              <span class="text-slate-400">Domain</span>
+              <span id="card-intel-domain" class="font-semibold text-slate-100 break-all">-</span>
+            </div>
+            <div class="flex justify-between bg-slate-950/70 border border-slate-800 rounded-lg p-3">
+              <span class="text-slate-400">Feed Hits</span>
+              <span id="card-intel-hits" class="font-semibold text-slate-100">0</span>
+            </div>
+            <div class="flex justify-between bg-slate-950/70 border border-slate-800 rounded-lg p-3">
+              <span class="text-slate-400">External Lookup</span>
+              <span id="card-intel-ext" class="font-semibold text-slate-100">Offline Curated Feed</span>
+            </div>
+          </div>
+          <div id="card-intel-reason" class="rounded-xl p-3.5 text-xs border"></div>
+        </div>
+      </div>
+
+      <!-- Expandable SIEM-Ready JSON Event -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="font-semibold text-slate-100 text-sm">SIEM-Ready JSON Event</h3>
+            <p class="text-xs text-slate-400">Standardized security telemetry payload ready for log ingestion</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="copy-json-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-200 hover:bg-slate-700 transition cursor-pointer">
+              Copy JSON
+            </button>
+            <button id="download-json-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-200 hover:bg-slate-700 transition cursor-pointer">
+              Download JSON
+            </button>
+            <button id="toggle-json-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-500/15 text-sky-300 border border-sky-500/30 hover:bg-sky-500/25 transition cursor-pointer">
+              Show JSON
+            </button>
+          </div>
+        </div>
+        <pre id="siem-json-pre" class="hidden mt-4 bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs text-slate-300 overflow-x-auto leading-relaxed"></pre>
+      </div>
+    </section>
+
+    <!-- Analytics & History Section -->
+    <section class="space-y-5">
+      <!-- 2 Compact Chart.js Visualizations -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h3 class="text-sm font-semibold text-slate-100 mb-3">Severity Distribution</h3>
+          <div class="h-56 flex items-center justify-center">
+            <canvas id="severity-chart"></canvas>
+          </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h3 class="text-sm font-semibold text-slate-100 mb-3">Most Common Missing Headers</h3>
+          <div class="h-56">
+            <canvas id="headers-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- History Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <h3 class="text-base font-semibold text-slate-100">Scan History</h3>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <input
+              id="history-search"
+              type="text"
+              placeholder="Search URL or domain..."
+              class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+            />
+            <select
+              id="history-severity-filter"
+              class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-sky-500"
+            >
+              <option value="ALL">All Severities</option>
+              <option value="CRITICAL">CRITICAL</option>
+              <option value="HIGH">HIGH</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="LOW">LOW</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs sm:text-sm">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 text-xs uppercase tracking-wider">
+                <th class="py-3 px-3">Timestamp</th>
+                <th class="py-3 px-3">Target URL</th>
+                <th class="py-3 px-3">Risk Score</th>
+                <th class="py-3 px-3">Severity</th>
+                <th class="py-3 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody" class="divide-y divide-slate-800/70">
+              <tr>
+                <td colspan="5" class="py-6 text-center text-slate-500 text-sm">
+                  No scans recorded yet. Run a scan or click a Quick Demo button above.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
+
