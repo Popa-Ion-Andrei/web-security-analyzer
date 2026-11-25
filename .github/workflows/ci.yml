@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-and-test:
+  lint-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -23,6 +23,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run unit tests with pytest
+      - name: Run ruff linter
+        run: |
+          ruff check .
+
+      - name: Run unit and API tests with pytest
         run: |
           PYTHONPATH=. pytest -v
